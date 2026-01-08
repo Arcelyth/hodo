@@ -2,6 +2,8 @@
 
 A terminal-based (TUI) todo list application written in Haskell, built with the Brick library.
 
+![Snapshot](./snapshot.png "Snapshot")
+
 ## Usage
 
 There are three modes in hodo: `Normal`, `Change`, `Add`
