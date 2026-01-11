@@ -1,2 +1,4 @@
 dist-newstyle/
 *.txt
+.stack-work/
+stack.yaml.lock

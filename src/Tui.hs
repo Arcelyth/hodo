@@ -11,7 +11,8 @@ import Lens.Micro (Lens', lens, (^.), (&), (%~), (.~))
 import Lens.Micro.Mtl (use, zoom, (.=), (%=))
 import Control.Monad.State (get, put)
 
-import System.Directory (doesFileExist)
+import System.Directory (doesFileExist, getHomeDirectory)
+import System.FilePath ((</>))
 import qualified Brick.AttrMap as A
 import qualified Brick.Main as M
 import qualified Brick.Types as T
@@ -99,7 +100,7 @@ drawUI s =
       padAll 1 $
       hBox
         [ drawList PendingList " Pending "  attrPending (s^.pList)
-        , drawList WipList     " WIP "      attrWip     (s^.wList)
+        , drawList WipList     " W.I.P "      attrWip     (s^.wList)
         , drawList DoneList    " Done "     attrDone    (s^.dList)
         ]
 
@@ -172,7 +173,9 @@ syncFile s = do
            render "P" (s^.pList)
         ++ render "W" (s^.wList)
         ++ render "D" (s^.dList)
-  writeFile "todo.txt" content
+  home <- getHomeDirectory
+  let path = home </> ".hodo"
+  writeFile path content
 
 appEvent :: T.BrickEvent Name e -> T.EventM Name AppState ()
 appEvent evv@(T.VtyEvent e) = do
@@ -294,9 +297,11 @@ app = M.App
 
 tui :: IO ()
 tui = do
-  exists <- doesFileExist "todo.txt"
-  if not exists then writeFile "todo.txt" "" else return ()
-  content <- readFile "todo.txt"
+  home <- getHomeDirectory
+  let path = home </> ".hodo"
+  exists <- doesFileExist path
+  if not exists then writeFile path "" else return ()
+  content <- readFile path
   let ls = lines content
       findPrefix p = Vec.fromList [ drop 2 l | l <- ls, p `DL.isPrefixOf` l ]
       initState = AppState

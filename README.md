@@ -6,14 +6,22 @@ A terminal-based (TUI) todo list application written in Haskell, built with the 
 
 ## Usage
 
-There are three modes in hodo: `Normal`, `Change`, `Add`
+- `↑` `↓` `←` `→`: Navigate between items and lists
+- `c`: Enter change mode to move selected item
+- `r`: Remove selected item
+- `a`: Add new item to pending list
+- `Esc`: Exit current mode
 
-Most time you will in the `Normal` mode, press `up` `down` `left` `right` to select item in your todo list.
+The application loads and saves todo list from `~/.hodo` and can be edited directly.
 
-Press 'c' into the `Change` mode, which allows you to move the item you have been selected.
+## Installation
 
-Press 'r' in the `Noraml` mode will delete the current item you have been selected.
+```bash
+# Build from source
+cabal build
+cabal run hodo
 
-Press 'a' to add a new item in the pending list.
+# Or using stack to generate the executable
+stack install
+```
 
-You can directly change the file `todo.txt` to change the items' states.
