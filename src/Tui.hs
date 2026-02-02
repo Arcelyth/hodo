@@ -35,10 +35,10 @@ import qualified Brick.Widgets.Edit as E
 import Data.Text (Text)
 import qualified Data.Text as DT
 
-data Name = PendingList | WipList | DoneList | AddEditor
+data Name = PendingList | WipList | DoneList | AddEditor | ModifyEditor
   deriving (Show, Eq, Ord)
 
-data Mode = Normal | Change | Add
+data Mode = Normal | Change | Add | Modify
 
 data AppState = AppState
   { _pList :: L.List Name String
@@ -77,6 +77,7 @@ drawUI :: AppState -> [Widget Name]
 drawUI s = 
   case s^.mode of
     Add  -> [drawAddUI s]
+    Modify -> [drawModifyUI s]
     _    -> [ui]
   where
     focus = F.focusGetCurrent (s^.focusRing)
@@ -116,6 +117,20 @@ drawAddUI s =
       E.renderEditor (str . DT.unpack . DT.unlines) True (s^.editor)
     , padTop (Pad 1) $
       str "Enter = confirm | Esc = cancel"
+    ]
+
+drawModifyUI :: AppState -> Widget Name
+drawModifyUI s =
+  forceAttr attrEditor $
+  C.centerLayer $
+  B.borderWithLabel (str " Modify Item ") $
+  padAll 1 $
+  vBox
+    [ str "Edit item:" 
+    , padTop (Pad 1) $
+      E.renderEditor (str . DT.unpack . DT.unlines) True (s^.editor)
+    , padTop (Pad 1) $
+      str "Enter = save | Esc = cancel"
     ]
 
 drawItem :: AppState -> Bool -> Bool -> String -> Widget Name
@@ -181,7 +196,6 @@ appEvent :: T.BrickEvent Name e -> T.EventM Name AppState ()
 appEvent evv@(T.VtyEvent e) = do
   s <- get
   case s^.mode of
-
     Normal -> case e of
       V.EvKey V.KEsc [] -> M.halt
       V.EvKey V.KLeft  [] -> focusRing %= F.focusPrev
@@ -190,6 +204,19 @@ appEvent evv@(T.VtyEvent e) = do
       V.EvKey (V.KChar 'a') [] -> do
         mode .= Add
         editor .= E.editor AddEditor (Just 1) ""
+      V.EvKey (V.KChar 'm') [] -> do
+        r <- use focusRing
+        s' <- get
+        let maybeSelected = case F.focusGetCurrent r of
+              Just PendingList -> L.listSelectedElement (s'^.pList)
+              Just WipList     -> L.listSelectedElement (s'^.wList)
+              Just DoneList    -> L.listSelectedElement (s'^.dList)
+              Nothing          -> Nothing
+        case maybeSelected of
+          Nothing -> return () 
+          Just (_, val) -> do
+            mode .= Modify
+            editor .= E.editor ModifyEditor (Just 1) (DT.pack val)
       V.EvKey (V.KChar 'r') [] -> do
         r <- use focusRing
         s' <- get
@@ -282,7 +309,24 @@ appEvent evv@(T.VtyEvent e) = do
             put s'
             liftIO (syncFile s')
       _ -> zoom editor (E.handleEditorEvent evv)
-
+    Modify -> case e of 
+      V.EvKey V.KEsc [] -> mode .= Normal
+      V.EvKey V.KEnter [] -> do
+        s <- get
+        let txt = DT.unpack $ DT.intercalate "\n" $ E.getEditContents (s^.editor)
+        r <- use focusRing
+        
+        if null txt 
+          then mode .= Normal
+          else do
+            let s' = case F.focusGetCurrent r of
+                       Just n  -> s & nameToLens n %~ L.listModify (const txt)
+                       Nothing -> s
+            let finalState = s' & mode .~ Normal
+            put finalState
+            liftIO (syncFile finalState)
+            
+      _ -> zoom editor (E.handleEditorEvent evv)
 
 appEvent _ = return ()
 
