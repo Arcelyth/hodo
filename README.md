@@ -10,6 +10,7 @@ A terminal-based (TUI) todo list application written in Haskell, built with the 
 - `c`: Enter change mode to move selected item
 - `r`: Remove selected item
 - `a`: Add new item to pending list
+- `x`: Modify an item
 - `Esc`: Exit current mode
 
 The application loads and saves todo list from `~/.hodo` and can be edited directly.
