@@ -38,7 +38,7 @@ import qualified Data.Text as DT
 data Name = PendingList | WipList | DoneList | AddEditor | ModifyEditor
   deriving (Show, Eq, Ord)
 
-data Mode = Normal | Change | Add | Modify
+data Mode = Normal | Change | Add | Modify | Remove
 
 data AppState = AppState
   { _pList :: L.List Name String
@@ -78,6 +78,7 @@ drawUI s =
   case s^.mode of
     Add  -> [drawAddUI s]
     Modify -> [drawModifyUI s]
+    Remove -> [drawRemoveUI s, ui]
     _    -> [ui]
   where
     focus = F.focusGetCurrent (s^.focusRing)
@@ -144,9 +145,20 @@ drawItem s isFocused selected txt =
     in if selected && isFocused
        then case s^.mode of
               Change -> withAttr attrChange itemWidget
-              Normal -> itemWidget
+              _ -> itemWidget
        else 
            itemWidget
+
+drawRemoveUI :: AppState -> Widget Name
+drawRemoveUI _ =
+  C.centerLayer $
+  withBorderStyle BS.unicodeBold $
+  B.borderWithLabel (str " Confirm Delete ") $
+  padAll 1 $
+  vBox
+    [ str "Are you sure you want to delete this item?"
+    , padTop (Pad 1) $ C.hCenter $ str " (y)es / (n)o "
+    ]
 
 moveItemHoriz :: Name -> Name -> AppState -> AppState
 moveItemHoriz from to s =
@@ -217,16 +229,18 @@ appEvent evv@(T.VtyEvent e) = do
           Just (_, val) -> do
             mode .= Modify
             editor .= E.editor ModifyEditor (Just 1) (DT.pack val)
+
       V.EvKey (V.KChar 'r') [] -> do
         r <- use focusRing
         s' <- get
-        let s'' = case F.focusGetCurrent r of
-              Just PendingList -> removeSelected pList s'
-              Just WipList     -> removeSelected wList s'
-              Just DoneList    -> removeSelected dList s'
-              Nothing          -> s'
-        put s''
-        liftIO (syncFile s'')
+        let hasSelection = case F.focusGetCurrent r of
+              Just PendingList -> L.listSelected (s'^.pList)
+              Just WipList     -> L.listSelected (s'^.wList)
+              Just DoneList    -> L.listSelected (s'^.dList)
+              Nothing          -> Nothing
+        case hasSelection of
+          Just _ -> mode .= Remove
+          Nothing -> return ()
 
       ev -> do
         r <- use focusRing
@@ -288,6 +302,7 @@ appEvent evv@(T.VtyEvent e) = do
           Nothing -> return ()
 
       _ -> return ()
+
     Add -> case e of 
       V.EvKey V.KEsc [] -> do
         mode .= Normal
@@ -309,6 +324,7 @@ appEvent evv@(T.VtyEvent e) = do
             put s'
             liftIO (syncFile s')
       _ -> zoom editor (E.handleEditorEvent evv)
+
     Modify -> case e of 
       V.EvKey V.KEsc [] -> mode .= Normal
       V.EvKey V.KEnter [] -> do
@@ -327,6 +343,22 @@ appEvent evv@(T.VtyEvent e) = do
             liftIO (syncFile finalState)
             
       _ -> zoom editor (E.handleEditorEvent evv)
+
+    Remove -> case e of
+      V.EvKey (V.KChar 'y') [] -> do
+        r <- use focusRing
+        s' <- get
+        let s'' = case F.focusGetCurrent r of
+              Just PendingList -> removeSelected pList s'
+              Just WipList     -> removeSelected wList s'
+              Just DoneList    -> removeSelected dList s'
+              Nothing          -> s'
+        put $ s'' & mode .~ Normal 
+        liftIO (syncFile (s'' & mode .~ Normal))
+
+      V.EvKey (V.KChar 'n') [] -> mode .= Normal
+      V.EvKey V.KEsc []        -> mode .= Normal
+      _ -> return ()
 
 appEvent _ = return ()
 
